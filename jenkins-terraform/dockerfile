@@ -1,0 +1,52 @@
+# syntax=docker/dockerfile:1.6
+FROM ubuntu:24.04
+
+ARG TERRAFORM_VERSION=1.10.5
+ARG AWSCLI_VERSION=2.24.15
+ARG KUBECTL_VERSION=1.31.2
+ARG YQ_VERSION=4.45.1
+
+RUN set -eux; \
+  apt-get update; \
+  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    jq \
+    unzip \
+    xz-utils \
+    git \
+    gnupg \
+    bash; \
+  update-ca-certificates; \
+  rm -rf /var/lib/apt/lists/*
+
+# Terraform (verify checksum in /tmp)
+RUN set -eux; \
+  TF_FILE="terraform_${TERRAFORM_VERSION}_linux_amd64.zip"; \
+  TF_SUMS="terraform_${TERRAFORM_VERSION}_SHA256SUMS"; \
+  curl -fsSLo /tmp/${TF_FILE} "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/${TF_FILE}"; \
+  curl -fsSLo /tmp/${TF_SUMS} "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/${TF_SUMS}"; \
+  (cd /tmp && grep " ${TF_FILE}\$" "${TF_SUMS}" | sha256sum -c -); \
+  unzip -q /tmp/${TF_FILE} -d /usr/local/bin; \
+  rm -f /tmp/${TF_FILE} /tmp/${TF_SUMS}; \
+  terraform -version
+
+# AWS CLI v2 (x86_64)
+RUN set -eux; \
+  curl -fsSLo /tmp/awscliv2.zip "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${AWSCLI_VERSION}.zip"; \
+  unzip -q /tmp/awscliv2.zip -d /tmp; \
+  /tmp/aws/install --update; \
+  rm -rf /tmp/aws /tmp/awscliv2.zip; \
+  aws --version
+
+# kubectl (amd64)
+RUN set -eux; \
+  curl -fsSLo /usr/local/bin/kubectl "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/amd64/kubectl"; \
+  chmod +x /usr/local/bin/kubectl; \
+  kubectl version --client=true
+
+# yq (amd64)
+RUN set -eux; \
+  curl -fsSLo /usr/local/bin/yq "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/yq_linux_amd64"; \
+  chmod +x /usr/local/bin/yq; \
+  yq --version
